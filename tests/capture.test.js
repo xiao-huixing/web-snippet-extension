@@ -187,7 +187,7 @@ test("Ace 编辑器不读取只含当前行的隐藏输入框", async () => {
   const harness = createCaptureHarness(async (message) => {
     messages.push(message);
     if (message.type === "READ_ACE_EDITOR") {
-      return { ok: true, content: "第一行\n第二行\n第三行" };
+      return { ok: true, editorType: "ace", content: "第一行\n第二行\n第三行" };
     }
     return { ok: false };
   });
@@ -204,4 +204,42 @@ test("Ace 编辑器不读取只含当前行的隐藏输入框", async () => {
 
   assert.equal(messages.at(-1).type, "READ_ACE_EDITOR");
   assert.equal(draft.content, "第一行\n第二行\n第三行");
+});
+
+test("只有 Ace 样式但没有真实实例时回退到页面选区", async () => {
+  const messages = [];
+  const harness = createCaptureHarness(async (message) => {
+    messages.push(message);
+    return { ok: false, editorType: null, content: null };
+  });
+  const lookalikeRoot = new harness.FakeElement();
+  lookalikeRoot.classList = { contains: (name) => name === "ace_editor" };
+  const textarea = new harness.FakeTextArea();
+  textarea.value = "不应读取的伪编辑器内容";
+  textarea.closestResult = lookalikeRoot;
+  textarea.closestSelector = ".ace_editor";
+  textarea.focus();
+  harness.listeners.get("focusin")({ target: textarea });
+
+  const draft = await harness.capture.captureCurrent("普通页面选区", { preferFocusedField: true });
+
+  assert.equal(messages.at(-1).type, "READ_ACE_EDITOR");
+  assert.equal(draft.content, "普通页面选区");
+});
+
+test("普通输入框网页不会触发 Ace 编辑器读取", async () => {
+  const messages = [];
+  const harness = createCaptureHarness(async (message) => {
+    messages.push(message);
+    return { ok: false };
+  });
+  const textarea = new harness.FakeTextArea();
+  textarea.value = "普通输入框完整内容";
+  textarea.focus();
+  harness.listeners.get("focusin")({ target: textarea });
+
+  const draft = await harness.capture.captureCurrent("", { preferFocusedField: true });
+
+  assert.equal(draft.content, "普通输入框完整内容");
+  assert.equal(messages.some((message) => message.type === "READ_ACE_EDITOR"), false);
 });

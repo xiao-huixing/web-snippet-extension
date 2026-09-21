@@ -232,13 +232,18 @@ async function readAceEditor(tabId) {
       const activeRoot = document.activeElement?.closest?.(".ace_editor");
       const host = activeRoot || document.querySelector(".ace_editor.ace_focus") || document.querySelector(".ace_editor");
       const editor = host?.env?.editor;
-      if (!editor || typeof editor.getValue !== "function") return null;
+      if (!editor || typeof editor.getValue !== "function") {
+        return { editorType: null, content: null };
+      }
       const selection = typeof editor.getSelectedText === "function" ? editor.getSelectedText() : "";
-      return selection || editor.getValue();
+      return { editorType: "ace", content: selection || editor.getValue() };
     }
   });
-  const content = results[0]?.result;
-  return typeof content === "string" ? content : null;
+  const result = results[0]?.result;
+  if (result?.editorType !== "ace" || typeof result.content !== "string") {
+    return { editorType: null, content: null };
+  }
+  return result;
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -266,8 +271,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return { ok: content !== null, content };
       }
       case "READ_ACE_EDITOR": {
-        const content = await readAceEditor(sender.tab.id);
-        return { ok: content !== null, content };
+        const result = await readAceEditor(sender.tab.id);
+        return { ok: result.editorType === "ace", ...result };
       }
       default:
         return { ok: false, code: "UNKNOWN_MESSAGE" };

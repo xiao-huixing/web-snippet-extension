@@ -48,7 +48,7 @@ function createBackgroundHarness(sendResult = { ok: true }, options = {}) {
       onStartup: { addListener(listener) { startupListener = listener; } },
       onMessage: { addListener(listener) { messageListener = listener; } }
     },
-    scripting: { executeScript: async () => [] },
+    scripting: { executeScript: async () => options.executeScriptResults || [] },
     storage: {
       local: {
         async get(key) { return { [key]: stored }; },
@@ -87,7 +87,7 @@ function createBackgroundHarness(sendResult = { ok: true }, options = {}) {
       }
     },
     sendRuntimeMessage(message) {
-      return new Promise((resolve) => messageListener(message, {}, resolve));
+      return new Promise((resolve) => messageListener(message, { tab: { id: 42 } }, resolve));
     }
   };
 }
@@ -149,4 +149,28 @@ test("保存最后一次展开收起状态供所有站点复用", async () => {
   assert.equal(response.ok, true);
   assert.equal(harness.getStore().uiState.collapsed, true);
   assert.equal(harness.getStore().uiState.collapsedBySite["https://example.com"], true);
+});
+
+test("页面存在真实 Ace 实例时返回明确的编辑器类型", async () => {
+  const harness = createBackgroundHarness({ ok: true }, {
+    executeScriptResults: [{ result: { editorType: "ace", content: "第一行\n第二行" } }]
+  });
+
+  const response = await harness.sendRuntimeMessage({ type: "READ_ACE_EDITOR" });
+
+  assert.equal(response.ok, true);
+  assert.equal(response.editorType, "ace");
+  assert.equal(response.content, "第一行\n第二行");
+});
+
+test("页面没有真实 Ace 实例时不冒充 Ace 编辑器", async () => {
+  const harness = createBackgroundHarness({ ok: true }, {
+    executeScriptResults: [{ result: { editorType: null, content: null } }]
+  });
+
+  const response = await harness.sendRuntimeMessage({ type: "READ_ACE_EDITOR" });
+
+  assert.equal(response.ok, false);
+  assert.equal(response.editorType, null);
+  assert.equal(response.content, null);
 });

@@ -75,7 +75,10 @@
     }
     if (editorRoot?.classList.contains("ace_editor")) {
       const response = await sendRuntimeMessage({ type: "READ_ACE_EDITOR" });
-      if (response?.ok && typeof response.content === "string") return response.content;
+      if (response?.ok && response.editorType === "ace" && typeof response.content === "string") {
+        return response.content;
+      }
+      return "";
     }
     if (editorRoot) return readCodeMirror(editorRoot);
     return readStandardInput(target);
