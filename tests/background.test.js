@@ -7,25 +7,45 @@ const test = require("node:test");
 const vm = require("node:vm");
 const Core = require("../shared/core.js");
 
-function createBackgroundHarness(sendResult = { ok: true }) {
+function createBackgroundHarness(sendResult = { ok: true }, options = {}) {
   let actionListener = null;
+  let installedListener = null;
   let messageListener = null;
+  let startupListener = null;
   let stored = Core.emptyStore();
   const sentMessages = [];
   const createdTabs = [];
+  const menuErrors = [];
+  const menuIds = new Set();
+  const menuOperations = [];
+  const runMenuOperation = (operation) => {
+    if (options.deferMenuOperations) menuOperations.push(operation);
+    else operation();
+  };
   const chrome = {
     action: {
       onClicked: { addListener(listener) { actionListener = listener; } }
     },
     contextMenus: {
-      removeAll(callback) { callback(); },
-      create() {},
+      removeAll(callback) {
+        runMenuOperation(() => {
+          menuIds.clear();
+          callback();
+        });
+      },
+      create(item, callback) {
+        runMenuOperation(() => {
+          if (menuIds.has(item.id)) menuErrors.push(`duplicate:${item.id}`);
+          else menuIds.add(item.id);
+          callback?.();
+        });
+      },
       onClicked: { addListener() {} }
     },
     runtime: {
       getURL(file) { return `chrome-extension://test/${file}`; },
-      onInstalled: { addListener() {} },
-      onStartup: { addListener() {} },
+      onInstalled: { addListener(listener) { installedListener = listener; } },
+      onStartup: { addListener(listener) { startupListener = listener; } },
       onMessage: { addListener(listener) { messageListener = listener; } }
     },
     scripting: { executeScript: async () => [] },
@@ -54,8 +74,18 @@ function createBackgroundHarness(sendResult = { ok: true }) {
   return {
     getActionListener: () => actionListener,
     getStore: () => stored,
+    menuErrors,
+    menuIds,
     sentMessages,
     createdTabs,
+    async registerMenusConcurrently() {
+      installedListener();
+      startupListener();
+      for (let pass = 0; pass < 8; pass += 1) {
+        await Promise.resolve();
+        while (menuOperations.length) menuOperations.shift()();
+      }
+    },
     sendRuntimeMessage(message) {
       return new Promise((resolve) => messageListener(message, {}, resolve));
     }
@@ -80,6 +110,15 @@ test("当前页面无法注入浮层时退回管理页", async () => {
 
   assert.equal(harness.createdTabs.length, 1);
   assert.equal(harness.createdTabs[0].url, "chrome-extension://test/manager.html");
+});
+
+test("安装与启动事件并发时不会重复创建右键菜单", async () => {
+  const harness = createBackgroundHarness({ ok: true }, { deferMenuOperations: true });
+
+  await harness.registerMenusConcurrently();
+
+  assert.deepEqual(harness.menuErrors, []);
+  assert.deepEqual([...harness.menuIds], ["save-as-web-snippet"]);
 });
 
 test("保存折叠小球的站点边缘位置", async () => {

@@ -4,6 +4,15 @@
   let lastEditable = null;
   let contextTarget = null;
 
+  async function sendRuntimeMessage(message) {
+    try {
+      return await chrome.runtime.sendMessage(message);
+    } catch (error) {
+      if (/Extension context invalidated/i.test(error?.message || "")) return null;
+      throw error;
+    }
+  }
+
   function isTextInput(element) {
     if (element instanceof HTMLTextAreaElement) return true;
     if (!(element instanceof HTMLInputElement)) return false;
@@ -61,7 +70,7 @@
     if (!target || !(target instanceof Element)) return "";
     const editorRoot = editorRootFor(target);
     if (editorRoot?.classList.contains("CodeMirror")) {
-      const response = await chrome.runtime.sendMessage({ type: "READ_CODEMIRROR5" });
+      const response = await sendRuntimeMessage({ type: "READ_CODEMIRROR5" });
       if (response?.ok && typeof response.content === "string") return response.content;
     }
     if (editorRoot) return readCodeMirror(editorRoot);
@@ -136,7 +145,7 @@
     const editorRoot = editorRootFor(target);
 
     if (editorRoot?.classList.contains("CodeMirror")) {
-      const response = await chrome.runtime.sendMessage({ type: "FILL_CODEMIRROR5", content: value });
+      const response = await sendRuntimeMessage({ type: "FILL_CODEMIRROR5", content: value });
       if (response?.ok) return { mode: "filled" };
     }
     if (editorRoot?.classList.contains("cm-editor") && fillCodeMirror6(editorRoot, value)) {

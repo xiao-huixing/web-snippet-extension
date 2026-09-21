@@ -89,7 +89,7 @@ function findByAttribute(root, name, value) {
   return null;
 }
 
-function createOverlayHarness(collapsed, siteCollapsed = collapsed) {
+function createOverlayHarness(collapsed, siteCollapsed = collapsed, invalidateOnMutation = false) {
   const messages = [];
   const documentElement = new FakeElement("html");
   const document = {
@@ -119,6 +119,7 @@ function createOverlayHarness(collapsed, siteCollapsed = collapsed) {
         async sendMessage(message) {
           messages.push(message);
           if (message.type === "GET_STORE") return { ok: true, store };
+          if (invalidateOnMutation) throw new Error("Extension context invalidated.");
           return { ok: true };
         }
       }
@@ -129,6 +130,7 @@ function createOverlayHarness(collapsed, siteCollapsed = collapsed) {
   vm.runInContext(source, context);
 
   return {
+    host: documentElement.children[0],
     messages,
     overlay: root.SnippetOverlay,
     shadow: documentElement.children[0].shadowRoot
@@ -188,6 +190,17 @@ test("全局折叠状态优先于站点旧记录", async () => {
   const panel = findByClass(harness.shadow, "panel");
   assert.match(panel.className, /\bcollapsed\b/);
   assert.ok(findByAttribute(panel, "aria-label", "展开网页片段"));
+});
+
+test("扩展上下文失效后移除旧浮层且不产生未处理拒绝", async () => {
+  const harness = createOverlayHarness(true, true, true);
+  await harness.overlay.refresh();
+
+  const panel = findByClass(harness.shadow, "panel");
+  const toggle = findByAttribute(panel, "aria-label", "展开网页片段");
+
+  await assert.doesNotReject(() => toggle.events.get("click")());
+  assert.equal(harness.host.removed, true);
 });
 
 test("拖动折叠小球后吸附最近边缘且不触发展开", async () => {

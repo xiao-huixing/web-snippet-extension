@@ -5,6 +5,7 @@ importScripts("shared/core.js");
 const STORE_KEY = "snippetStore";
 const MENU_ID = "save-as-web-snippet";
 let mutationQueue = Promise.resolve();
+let contextMenuRegistration = Promise.resolve();
 
 async function readStore() {
   const result = await chrome.storage.local.get(STORE_KEY);
@@ -32,24 +33,47 @@ async function ensureStore() {
   if (!result[STORE_KEY]) await writeStore(SnippetCore.emptyStore());
 }
 
-function registerContextMenu() {
-  chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({
-      id: MENU_ID,
-      title: "保存为片段",
-      contexts: ["selection", "editable"]
+function removeAllContextMenus() {
+  return new Promise((resolve, reject) => {
+    chrome.contextMenus.removeAll(() => {
+      const error = chrome.runtime.lastError;
+      if (error) reject(new Error(error.message));
+      else resolve();
     });
   });
 }
 
+function createContextMenu() {
+  return new Promise((resolve, reject) => {
+    chrome.contextMenus.create({
+      id: MENU_ID,
+      title: "保存为片段",
+      contexts: ["selection", "editable"]
+    }, () => {
+      const error = chrome.runtime.lastError;
+      if (error) reject(new Error(error.message));
+      else resolve();
+    });
+  });
+}
+
+function registerContextMenu() {
+  const task = contextMenuRegistration.then(async () => {
+    await removeAllContextMenus();
+    await createContextMenu();
+  });
+  contextMenuRegistration = task.catch(() => undefined);
+  return task;
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   ensureStore().catch(() => undefined);
-  registerContextMenu();
+  registerContextMenu().catch(() => undefined);
 });
 
 chrome.runtime.onStartup.addListener(() => {
   ensureStore().catch(() => undefined);
-  registerContextMenu();
+  registerContextMenu().catch(() => undefined);
 });
 
 chrome.action.onClicked.addListener(async (tab) => {

@@ -94,6 +94,19 @@
   let panelSiteKey = null;
   let ignoreNextOrbClick = false;
 
+  async function sendRuntimeMessage(message) {
+    try {
+      return await chrome.runtime.sendMessage(message);
+    } catch (error) {
+      if (!/Extension context invalidated/i.test(error?.message || "")) throw error;
+      overlayHidden = true;
+      panel = null;
+      panelSiteKey = null;
+      host.remove();
+      return null;
+    }
+  }
+
   function viewportSize() {
     return {
       width: Number.isFinite(window.innerWidth) ? window.innerWidth : ORB_SIZE,
@@ -231,7 +244,7 @@
           orbPositionBySite: { ...store.uiState.orbPositionBySite, [siteKey]: position }
         }
       };
-      await chrome.runtime.sendMessage({ type: "SET_ORB_POSITION", siteKey, position });
+      await sendRuntimeMessage({ type: "SET_ORB_POSITION", siteKey, position });
     };
 
     orb.addEventListener("pointerup", (event) => finishDrag(event, false));
@@ -318,7 +331,7 @@
   }
 
   async function refresh() {
-    const response = await chrome.runtime.sendMessage({ type: "GET_STORE" });
+    const response = await sendRuntimeMessage({ type: "GET_STORE" });
     if (!response?.ok) return;
     store = response.store;
     renderPanel();
@@ -326,7 +339,7 @@
 
   async function removeSnippet(snippet) {
     if (!window.confirm(`删除片段“${snippet.name}”？`)) return;
-    const response = await chrome.runtime.sendMessage({ type: "DELETE_SNIPPET", id: snippet.id });
+    const response = await sendRuntimeMessage({ type: "DELETE_SNIPPET", id: snippet.id });
     toast(response?.ok ? "片段已删除" : "删除失败");
   }
 
@@ -358,7 +371,7 @@
         ignoreNextOrbClick = false;
         return;
       }
-      await chrome.runtime.sendMessage({ type: "SET_COLLAPSED", siteKey: locationInfo.siteKey, collapsed: !collapsed });
+      await sendRuntimeMessage({ type: "SET_COLLAPSED", siteKey: locationInfo.siteKey, collapsed: !collapsed });
     });
     if (collapsed) {
       applyOrbPosition(panel, getOrbPosition(locationInfo.siteKey));
@@ -422,7 +435,7 @@
           toast(error.message);
         }
       }),
-      button("管理全部", "secondary", () => chrome.runtime.sendMessage({ type: "OPEN_MANAGER" }))
+      button("管理全部", "secondary", () => sendRuntimeMessage({ type: "OPEN_MANAGER" }))
     );
     panel.append(head, body, actions);
     shadow.append(panel);
@@ -486,9 +499,9 @@
         type: "UPSERT_SNIPPET",
         payload: { name: nameInput.value, content: draft.content, pageUrl: draft.pageUrl, scope: scopeSelect.value }
       };
-      let response = await chrome.runtime.sendMessage(message);
+      let response = await sendRuntimeMessage(message);
       if (response?.code === "DUPLICATE" && window.confirm("当前范围已有同名片段，是否覆盖？")) {
-        response = await chrome.runtime.sendMessage({ ...message, overwrite: true });
+        response = await sendRuntimeMessage({ ...message, overwrite: true });
       }
       if (response?.ok) {
         close();
