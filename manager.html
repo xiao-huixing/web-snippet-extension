@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>网页片段管理</title>
+    <link rel="stylesheet" href="manager.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#snippet-list">跳到片段列表</a>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <h1>网页片段</h1>
+          <p>按站点整理常用内容</p>
+        </div>
+        <div class="sidebar-section">
+          <button id="all-groups" class="group-button active" type="button">
+            <span>全部片段</span><strong id="all-count">0</strong>
+          </button>
+          <p class="group-caption">站点</p>
+          <nav id="group-list" class="group-list" aria-label="站点分组"></nav>
+        </div>
+        <div class="privacy-note">
+          <strong>数据留在本机</strong>
+          <span>导入或导出前，请检查内容是否包含敏感信息。</span>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="toolbar">
+          <div class="view-heading">
+            <h2 id="view-title">全部片段</h2>
+            <p id="summary" class="summary" aria-live="polite"></p>
+          </div>
+          <div class="toolbar-actions">
+            <label class="search-box">
+              <span class="visually-hidden">搜索片段</span>
+              <input id="search-input" type="search" placeholder="名称、内容或网址">
+            </label>
+            <div class="toolbar-buttons">
+              <button id="import-button" class="button muted" type="button">导入</button>
+              <button id="export-button" class="button muted" type="button">导出</button>
+              <button id="new-button" class="button primary" type="button">新建</button>
+            </div>
+            <input id="import-input" type="file" accept="application/json,.json" hidden>
+          </div>
+        </header>
+
+        <section class="content-area">
+          <div id="snippet-list" class="snippet-grid"></div>
+          <div id="empty-state" class="empty-state" hidden>
+            <h3>还没有片段</h3>
+            <p>在网页中保存选中的内容，或点击“新建”添加第一条片段。</p>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="dialog-backdrop" class="dialog-backdrop" hidden>
+      <form id="editor-form" class="dialog">
+        <div class="dialog-head">
+          <h2 id="dialog-title">新建片段</h2>
+          <button id="dialog-close" class="close-button" type="button">关闭</button>
+        </div>
+        <input id="snippet-id" type="hidden">
+        <label>
+          <span>名称</span>
+          <input id="snippet-name" maxlength="120" required placeholder="例如：订单日对账">
+        </label>
+        <label>
+          <span>网页地址</span>
+          <input id="snippet-url" type="url" required placeholder="https://example.com/sqlquery/">
+          <small>修改地址可移动到其他站点。查询参数和锚点不会参与匹配。</small>
+        </label>
+        <label>
+          <span>使用范围</span>
+          <select id="snippet-scope">
+            <option value="site">当前站点</option>
+            <option value="page">仅当前页面路径</option>
+          </select>
+        </label>
+        <label>
+          <span>内容</span>
+          <textarea id="snippet-content" required spellcheck="false" placeholder="输入要保存的文本"></textarea>
+        </label>
+        <div class="dialog-actions">
+          <button id="dialog-cancel" class="button muted" type="button">取消</button>
+          <button class="button primary" type="submit">保存片段</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="toast" class="toast" role="status" hidden></div>
+    <script src="shared/core.js"></script>
+    <script src="manager.js"></script>
+  </body>
+</html>

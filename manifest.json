@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "网页片段",
+  "version": "1.0.0",
+  "description": "按网站保存、管理并快速回填常用文本片段。",
+  "permissions": [
+    "storage",
+    "contextMenus",
+    "scripting",
+    "clipboardWrite"
+  ],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "显示或隐藏网页片段"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": [
+        "shared/core.js",
+        "content/capture.js",
+        "content/overlay.js",
+        "content/main.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "manager.html"
+}
