@@ -15,7 +15,7 @@
     .panel { position: fixed; z-index: 2147483646; top: 18px; right: 18px; width: 340px;
       color: #172033; background: #fffdf8; border: 1px solid #cfd5df; border-radius: 14px;
       box-shadow: 0 16px 48px rgba(24, 34, 51, .2); font: 13px/1.45 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      opacity: 1; transition: opacity 160ms ease, transform 160ms ease; }
+      opacity: 1; transition: opacity 160ms ease; }
     .panel.collapsed { width: 44px; height: 44px; overflow: visible; background: transparent;
       border: 0; border-radius: 50%; box-shadow: none; }
     .head { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 9px 10px 9px 14px;
@@ -30,9 +30,7 @@
       touch-action: none; cursor: grab; background: transparent; border-radius: 50%; box-shadow: none; }
     .orb:hover { background: transparent; box-shadow: none; }
     .orb-dot { width: 8px; height: 8px; border-radius: 50%; background: #3157d5;
-      box-shadow: 0 0 0 3px rgba(255, 255, 255, .72), 0 2px 8px rgba(24, 34, 51, .22);
-      transition: transform 140ms ease; }
-    .orb:hover .orb-dot { transform: scale(1.2); }
+      box-shadow: 0 0 0 3px rgba(255, 255, 255, .72), 0 2px 8px rgba(24, 34, 51, .22); }
     .icon { width: 30px; height: 30px; color: #475569; background: transparent; border-radius: 8px; }
     .icon:hover { background: #e9edf7; color: #1d3fb7; }
     .orb:focus-visible, .icon:focus-visible, .primary:focus-visible, .secondary:focus-visible, .mini:focus-visible, .name:focus-visible {
@@ -69,12 +67,12 @@
       .panel { opacity: .42; }
       .panel:hover, .panel:focus-within { opacity: 1; }
       .panel.collapsed { opacity: .58; }
-      .panel.collapsed:hover, .panel.collapsed:focus-within { opacity: 1; transform: scale(1.05); }
+      .panel.collapsed:hover, .panel.collapsed:focus-within { opacity: 1; }
     }
-    .panel.collapsed.dragging { opacity: 1; transform: none; transition: none; }
+    .panel.collapsed.dragging { opacity: 1; transition: none; }
     .panel.collapsed.dragging .orb { cursor: grabbing; }
     @media (prefers-reduced-motion: reduce) {
-      .panel, .orb-dot { transition: none; }
+      .panel { transition: none; }
     }
   `;
   shadow.append(style);

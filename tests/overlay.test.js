@@ -138,7 +138,8 @@ test("折叠后显示稳定的小球按钮，点击后展开浮层", async () =>
   assert.match(style.textContent, /\.orb\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;[^}]*display:\s*grid;[^}]*place-items:\s*center;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/s);
   assert.match(style.textContent, /\.orb:hover\s*\{[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/s);
   assert.match(style.textContent, /\.orb-dot\s*\{[^}]*width:\s*8px;[^}]*height:\s*8px;[^}]*border-radius:\s*50%;[^}]*background:\s*#3157d5;/s);
-  assert.match(style.textContent, /\.panel\.collapsed:hover,[^}]*\.panel\.collapsed:focus-within\s*\{[^}]*transform:\s*scale\(1\.05\)/s);
+  assert.doesNotMatch(style.textContent, /transform:\s*scale/);
+  assert.doesNotMatch(style.textContent, /\.orb:hover \.orb-dot/);
   assert.doesNotMatch(style.textContent, /\.panel\.collapsed::before/);
   assert.match(panel.className, /\bcollapsed\b/);
   assert.ok(findByClass(panel, "orb"));
