@@ -12,7 +12,7 @@
       schemaVersion: SCHEMA_VERSION,
       snippets: [],
       settings: { showOverlayWhenNoMatch: true },
-      uiState: { collapsedBySite: {}, orbPositionBySite: {} }
+      uiState: { collapsed: false, collapsedBySite: {}, orbPositionBySite: {} }
     };
   }
 
@@ -193,6 +193,9 @@
         showOverlayWhenNoMatch: raw.settings?.showOverlayWhenNoMatch !== false
       },
       uiState: {
+        collapsed: typeof raw.uiState?.collapsed === "boolean"
+          ? raw.uiState.collapsed
+          : null,
         collapsedBySite:
           raw.uiState?.collapsedBySite && typeof raw.uiState.collapsedBySite === "object"
             ? { ...raw.uiState.collapsedBySite }

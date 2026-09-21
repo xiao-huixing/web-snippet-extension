@@ -329,7 +329,9 @@
     const snippets = Core.sortForPage(store.snippets.filter((item) => Core.matchesPage(item, location.href)));
     if (!snippets.length && !store.settings.showOverlayWhenNoMatch && !dialogOpen) return;
 
-    const collapsed = Boolean(store.uiState.collapsedBySite[locationInfo.siteKey]);
+    const collapsed = typeof store.uiState.collapsed === "boolean"
+      ? store.uiState.collapsed
+      : Boolean(store.uiState.collapsedBySite[locationInfo.siteKey]);
     panel = document.createElement("section");
     panelSiteKey = locationInfo.siteKey;
     panel.className = collapsed ? "panel collapsed" : "panel";

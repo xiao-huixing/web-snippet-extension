@@ -85,7 +85,7 @@ function findByAttribute(root, name, value) {
   return null;
 }
 
-function createOverlayHarness(collapsed) {
+function createOverlayHarness(collapsed, siteCollapsed = collapsed) {
   const messages = [];
   const documentElement = new FakeElement("html");
   const document = {
@@ -94,7 +94,8 @@ function createOverlayHarness(collapsed) {
     createElementNS: (_namespace, tagName) => new FakeElement(tagName)
   };
   const store = Core.emptyStore();
-  store.uiState.collapsedBySite["https://github.com"] = collapsed;
+  store.uiState.collapsed = collapsed;
+  store.uiState.collapsedBySite["https://github.com"] = siteCollapsed;
   const root = {
     SnippetCore: Core,
     SnippetCapture: {}
@@ -166,6 +167,15 @@ test("折叠后显示稳定的小球按钮，点击后展开浮层", async () =>
   assert.equal(message.type, "SET_COLLAPSED");
   assert.equal(message.siteKey, "https://github.com");
   assert.equal(message.collapsed, false);
+});
+
+test("全局折叠状态优先于站点旧记录", async () => {
+  const harness = createOverlayHarness(true, false);
+  await harness.overlay.refresh();
+
+  const panel = findByClass(harness.shadow, "panel");
+  assert.match(panel.className, /\bcollapsed\b/);
+  assert.ok(findByAttribute(panel, "aria-label", "展开网页片段"));
 });
 
 test("拖动折叠小球后吸附最近边缘且不触发展开", async () => {

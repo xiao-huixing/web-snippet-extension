@@ -122,3 +122,14 @@ test("存储中的小球位置会校验边缘和比例", () => {
   });
   assert.deepEqual(store.uiState.orbPositionBySite["https://invalid.example"], { edge: "right", ratio: 0 });
 });
+
+test("存储兼容全局与旧版按站点折叠状态", () => {
+  const modernStore = Core.normalizeStore({ uiState: { collapsed: true } });
+  const legacyStore = Core.normalizeStore({
+    uiState: { collapsedBySite: { "https://example.com": true } }
+  });
+
+  assert.equal(modernStore.uiState.collapsed, true);
+  assert.equal(legacyStore.uiState.collapsed, null);
+  assert.equal(legacyStore.uiState.collapsedBySite["https://example.com"], true);
+});

@@ -153,7 +153,9 @@ async function importSnippets(payload) {
 
 async function setCollapsed(siteKey, collapsed) {
   return mutateStore((store) => {
-    store.uiState.collapsedBySite[siteKey] = Boolean(collapsed);
+    const nextCollapsed = Boolean(collapsed);
+    store.uiState.collapsed = nextCollapsed;
+    store.uiState.collapsedBySite[siteKey] = nextCollapsed;
     return { ok: true };
   });
 }

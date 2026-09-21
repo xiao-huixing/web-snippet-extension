@@ -97,3 +97,17 @@ test("保存折叠小球的站点边缘位置", async () => {
     ratio: 0.5
   });
 });
+
+test("保存最后一次展开收起状态供所有站点复用", async () => {
+  const harness = createBackgroundHarness();
+
+  const response = await harness.sendRuntimeMessage({
+    type: "SET_COLLAPSED",
+    siteKey: "https://example.com",
+    collapsed: true
+  });
+
+  assert.equal(response.ok, true);
+  assert.equal(harness.getStore().uiState.collapsed, true);
+  assert.equal(harness.getStore().uiState.collapsedBySite["https://example.com"], true);
+});
