@@ -132,9 +132,6 @@ test("保存当前优先读取多行输入框的选区", async () => {
   textarea.selectionEnd = 7;
   textarea.focus();
   harness.listeners.get("focusin")({ target: textarea });
-  harness.listeners.get("select")({ target: textarea });
-  textarea.selectionStart = 7;
-  textarea.selectionEnd = 7;
 
   const overlayButton = new harness.FakeElement();
   overlayButton.focus();
@@ -161,4 +158,23 @@ test("保存当前在没有选区时读取整个多行输入框", async () => {
 
   assert.equal(draft.content, "第一行\n第二行\n第三行");
   assert.equal(draft.pageUrl, "https://example.com/form");
+});
+
+test("光标移到其他行后不会复用上一次选区", async () => {
+  const harness = createCaptureHarness();
+  const textarea = new harness.FakeTextArea();
+  textarea.value = "第一行\n第二行\n第三行";
+  textarea.selectionStart = 4;
+  textarea.selectionEnd = 7;
+  textarea.focus();
+  harness.listeners.get("focusin")({ target: textarea });
+
+  textarea.selectionStart = textarea.value.length;
+  textarea.selectionEnd = textarea.value.length;
+  const overlayButton = new harness.FakeElement();
+  overlayButton.focus();
+
+  const draft = await harness.capture.captureCurrent("", { preferFocusedField: true });
+
+  assert.equal(draft.content, "第一行\n第二行\n第三行");
 });

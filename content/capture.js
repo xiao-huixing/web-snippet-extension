@@ -3,7 +3,6 @@
 
   let lastEditable = null;
   let contextTarget = null;
-  let lastTextSelection = null;
 
   async function sendRuntimeMessage(message) {
     try {
@@ -34,17 +33,7 @@
     }
   }
 
-  function rememberTextSelection(element) {
-    if (!isTextInput(element)) return;
-    const start = Number.isInteger(element.selectionStart) ? element.selectionStart : 0;
-    const end = Number.isInteger(element.selectionEnd) ? element.selectionEnd : 0;
-    lastTextSelection = { element, start, end };
-  }
-
   document.addEventListener("focusin", (event) => rememberTarget(event.target), true);
-  for (const eventName of ["select", "keyup", "mouseup"]) {
-    document.addEventListener(eventName, (event) => rememberTextSelection(event.target), true);
-  }
   document.addEventListener(
     "contextmenu",
     (event) => {
@@ -59,11 +48,7 @@
     if (!isTextInput(element)) return "";
     const start = Number.isInteger(element.selectionStart) ? element.selectionStart : 0;
     const end = Number.isInteger(element.selectionEnd) ? element.selectionEnd : 0;
-    if (end > start) return element.value.slice(start, end);
-    if (lastTextSelection?.element === element && lastTextSelection.end > lastTextSelection.start) {
-      return element.value.slice(lastTextSelection.start, lastTextSelection.end);
-    }
-    return element.value;
+    return end > start ? element.value.slice(start, end) : element.value;
   }
 
   function selectionInside(container) {

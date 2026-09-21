@@ -427,14 +427,20 @@
 
     const actions = document.createElement("footer");
     actions.className = "actions";
+    const captureDraft = () => Capture.captureCurrent("", { preferFocusedField: true })
+      .then((draft) => ({ draft }), (error) => ({ error }));
+    let pendingCapture = null;
+    const saveCurrent = button("保存当前", "primary", async () => {
+      const result = await (pendingCapture || captureDraft());
+      pendingCapture = null;
+      if (result.error) toast(result.error.message);
+      else openSaveDialog(result.draft);
+    });
+    saveCurrent.addEventListener("pointerdown", () => {
+      pendingCapture = captureDraft();
+    });
     actions.append(
-      button("保存当前", "primary", async () => {
-        try {
-          openSaveDialog(await Capture.captureCurrent("", { preferFocusedField: true }));
-        } catch (error) {
-          toast(error.message);
-        }
-      }),
+      saveCurrent,
       button("管理全部", "secondary", () => sendRuntimeMessage({ type: "OPEN_MANAGER" }))
     );
     panel.append(head, body, actions);
