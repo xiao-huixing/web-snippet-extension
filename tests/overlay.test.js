@@ -300,3 +300,27 @@ test("完全隐藏后页面不保留浮层，并可通过消息重新打开", as
   harness.overlay.toggleVisibility();
   assert.ok(findByClass(harness.shadow, "panel"));
 });
+
+test("保存弹框允许修改内容并提交修改后的值", async () => {
+  const harness = createOverlayHarness(false);
+  await harness.overlay.refresh();
+
+  harness.overlay.openSaveDialog({
+    content: "原始内容",
+    pageUrl: "https://github.com/openai"
+  });
+
+  const form = findByClass(harness.shadow, "dialog");
+  const nameInput = form.children[2];
+  const scopeSelect = form.children[4];
+  const contentInput = form.children[6];
+  nameInput.value = "可编辑片段";
+  scopeSelect.value = "site";
+  contentInput.value = "修改后的完整内容\n第二行";
+
+  assert.notEqual(contentInput.readOnly, true);
+  await form.events.get("submit")({ preventDefault() {} });
+
+  const message = harness.messages.find((item) => item.type === "UPSERT_SNIPPET");
+  assert.equal(message.payload.content, "修改后的完整内容\n第二行");
+});

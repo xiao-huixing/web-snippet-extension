@@ -70,7 +70,7 @@
     .dialog h2 { margin: 0 0 16px; font-size: 19px; }
     label { display: block; margin: 11px 0 5px; color: #4a5568; font-weight: 650; }
     input, select, textarea { width: 100%; padding: 9px 10px; color: #111827; background: white; border: 1px solid #cbd2de; border-radius: 9px; font: inherit; outline: none; }
-    input:focus, select:focus { border-color: #3157d5; box-shadow: 0 0 0 3px #e1e7ff; }
+    input:focus, select:focus, textarea:focus { border-color: #3157d5; box-shadow: 0 0 0 3px #e1e7ff; }
     textarea { min-height: 110px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
     .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
     @media (hover: hover) and (pointer: fine) {
@@ -430,7 +430,7 @@
     actions.append(
       button("保存当前", "primary", async () => {
         try {
-          openSaveDialog(await Capture.captureCurrent(""));
+          openSaveDialog(await Capture.captureCurrent("", { preferFocusedField: true }));
         } catch (error) {
           toast(error.message);
         }
@@ -478,7 +478,6 @@
     contentLabel.textContent = "内容";
     const preview = document.createElement("textarea");
     preview.value = draft.content;
-    preview.readOnly = true;
     const actions = document.createElement("div");
     actions.className = "dialog-actions";
     const close = () => {
@@ -497,7 +496,7 @@
       event.preventDefault();
       const message = {
         type: "UPSERT_SNIPPET",
-        payload: { name: nameInput.value, content: draft.content, pageUrl: draft.pageUrl, scope: scopeSelect.value }
+        payload: { name: nameInput.value, content: preview.value, pageUrl: draft.pageUrl, scope: scopeSelect.value }
       };
       let response = await sendRuntimeMessage(message);
       if (response?.code === "DUPLICATE" && window.confirm("当前范围已有同名片段，是否覆盖？")) {
