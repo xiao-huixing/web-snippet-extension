@@ -27,20 +27,20 @@
     .head-actions { display: flex; flex: none; gap: 2px; align-items: center; margin-left: auto; }
     button { border: 0; font: inherit; cursor: pointer; }
     .orb { width: 44px; height: 44px; display: grid; place-items: center; padding: 0;
-      touch-action: none; cursor: grab; background: #fffdf8; border: 1px solid #cfd5df; border-radius: 50%;
-      box-shadow: 0 8px 22px rgba(24, 34, 51, .2); transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease; }
-    .orb:hover { background: #fffdf8; border-color: #aab4c4; box-shadow: 0 10px 26px rgba(24, 34, 51, .24); }
-    .orb-dot { width: 8px; height: 8px; border-radius: 50%; background: #3157d5;
-      box-shadow: 0 0 0 3px rgba(255, 255, 255, .86), 0 2px 8px rgba(24, 34, 51, .22);
-      transition: transform 140ms cubic-bezier(0.16, 1, 0.3, 1); }
-    .panel.collapsed.snapped .orb { background: transparent; border-color: transparent; box-shadow: none; }
-    .panel.collapsed.snapped:hover .orb, .panel.collapsed.snapped:focus-within .orb {
-      background: #fffdf8; border-color: #cfd5df; box-shadow: 0 8px 22px rgba(24, 34, 51, .2); }
-    .panel.collapsed.snapped[data-edge="left"] .orb-dot { transform: translateX(-16px); }
-    .panel.collapsed.snapped[data-edge="right"] .orb-dot { transform: translateX(16px); }
-    .panel.collapsed.snapped[data-edge="top"] .orb-dot { transform: translateY(-16px); }
-    .panel.collapsed.snapped[data-edge="bottom"] .orb-dot { transform: translateY(16px); }
-    .panel.collapsed.snapped:hover .orb-dot, .panel.collapsed.snapped:focus-within .orb-dot { transform: translate(0, 0); }
+      touch-action: none; cursor: grab; background: transparent; border: 0; border-radius: 50%; box-shadow: none; }
+    .orb:hover { background: transparent; box-shadow: none; }
+    .orb-mark { display: block; width: 24px; height: 24px; overflow: visible;
+      filter: drop-shadow(0 3px 7px rgba(15, 23, 42, .28));
+      transition: transform 140ms cubic-bezier(0.16, 1, 0.3, 1), filter 140ms ease; }
+    .mark-shell { fill: #111827; stroke: #e2e8f0; stroke-width: .85; }
+    .mark-glyph { fill: none; stroke: #bfdbfe; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
+    .mark-center { fill: #fff; stroke: #3157d5; stroke-width: .65; }
+    .orb:hover .orb-mark { filter: drop-shadow(0 4px 9px rgba(15, 23, 42, .38)); }
+    .panel.collapsed.snapped[data-edge="left"] .orb-mark { transform: translateX(-27px); }
+    .panel.collapsed.snapped[data-edge="right"] .orb-mark { transform: translateX(27px); }
+    .panel.collapsed.snapped[data-edge="top"] .orb-mark { transform: translateY(-27px); }
+    .panel.collapsed.snapped[data-edge="bottom"] .orb-mark { transform: translateY(27px); }
+    .panel.collapsed.snapped:hover .orb-mark, .panel.collapsed.snapped:focus-within .orb-mark { transform: translate(0, 0); }
     .icon { width: 30px; height: 30px; color: #475569; background: transparent; border-radius: 8px; }
     .icon:hover { background: #e9edf7; color: #1d3fb7; }
     .orb:focus-visible, .icon:focus-visible, .primary:focus-visible, .secondary:focus-visible, .mini:focus-visible, .name:focus-visible {
@@ -81,7 +81,7 @@
     .panel.collapsed.dragging { opacity: 1; transition: none; }
     .panel.collapsed.dragging .orb { cursor: grabbing; }
     @media (prefers-reduced-motion: reduce) {
-      .panel, .orb, .orb-dot { transition: none; }
+      .panel, .orb-mark { transition: none; }
     }
   `;
   shadow.append(style);
@@ -260,10 +260,27 @@
     element.setAttribute("aria-label", label);
     element.setAttribute("aria-expanded", String(!collapsed));
     if (collapsed) {
-      const dot = document.createElement("span");
-      dot.className = "orb-dot";
-      dot.setAttribute("aria-hidden", "true");
-      element.append(dot);
+      const mark = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      mark.setAttribute("class", "orb-mark");
+      mark.setAttribute("viewBox", "0 0 24 24");
+      mark.setAttribute("aria-hidden", "true");
+      const shell = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      shell.setAttribute("class", "mark-shell");
+      shell.setAttribute("cx", "12");
+      shell.setAttribute("cy", "12");
+      shell.setAttribute("r", "10");
+      mark.append(shell);
+      const glyph = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      glyph.setAttribute("class", "mark-glyph");
+      glyph.setAttribute("d", "M21 12c-6.597 0-9 2.403-9 9 0-6.597-2.403-9-9-9 6.597 0 9-2.403 9-9 0 6.597 2.403 9 9 9");
+      mark.append(glyph);
+      const center = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      center.setAttribute("class", "mark-center");
+      center.setAttribute("cx", "12");
+      center.setAttribute("cy", "12");
+      center.setAttribute("r", "1.45");
+      mark.append(center);
+      element.append(mark);
       return element;
     }
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");

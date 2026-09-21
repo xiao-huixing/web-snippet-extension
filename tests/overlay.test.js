@@ -68,7 +68,11 @@ class FakeElement {
 }
 
 function findByClass(root, className) {
-  if (root.className?.split(/\s+/).includes(className)) return root;
+  const value = [
+    typeof root.className === "string" ? root.className : "",
+    root.getAttribute?.("class") || ""
+  ].join(" ");
+  if (value.split(/\s+/).includes(className)) return root;
   for (const child of root.children) {
     const match = findByClass(child, className);
     if (match) return match;
@@ -142,19 +146,27 @@ test("折叠后显示稳定的小球按钮，点击后展开浮层", async () =>
   assert.match(style.textContent, /\.panel\s*\{\s*opacity:\s*\.42;/);
   assert.match(style.textContent, /\.panel:hover,\s*\.panel:focus-within\s*\{\s*opacity:\s*1;/);
   assert.match(style.textContent, /\.panel\.collapsed\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;[^}]*background:\s*transparent;[^}]*border:\s*0;/s);
-  assert.match(style.textContent, /\.orb\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;[^}]*display:\s*grid;[^}]*place-items:\s*center;[^}]*background:\s*#fffdf8;[^}]*border:\s*1px solid #cfd5df;[^}]*box-shadow:/s);
-  assert.match(style.textContent, /\.panel\.collapsed\.snapped \.orb\s*\{[^}]*background:\s*transparent;[^}]*border-color:\s*transparent;[^}]*box-shadow:\s*none;/s);
-  assert.match(style.textContent, /\.panel\.collapsed\.snapped:hover \.orb,[^}]*\.panel\.collapsed\.snapped:focus-within \.orb\s*\{[^}]*background:\s*#fffdf8;/s);
-  assert.match(style.textContent, /\.orb-dot\s*\{[^}]*width:\s*8px;[^}]*height:\s*8px;[^}]*border-radius:\s*50%;[^}]*background:\s*#3157d5;/s);
-  assert.match(style.textContent, /\.panel\.collapsed\.snapped\[data-edge="right"\] \.orb-dot\s*\{[^}]*transform:\s*translateX\(16px\)/s);
+  assert.match(style.textContent, /\.orb\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;[^}]*display:\s*grid;[^}]*place-items:\s*center;[^}]*background:\s*transparent;[^}]*border:\s*0;[^}]*box-shadow:\s*none;/s);
+  assert.match(style.textContent, /\.orb-mark\s*\{[^}]*width:\s*24px;[^}]*height:\s*24px;[^}]*filter:\s*drop-shadow\(0 3px 7px rgba\(15, 23, 42, \.28\)\)/s);
+  assert.match(style.textContent, /\.mark-shell\s*\{[^}]*fill:\s*#111827;[^}]*stroke:\s*#e2e8f0;[^}]*stroke-width:\s*\.85;/s);
+  assert.match(style.textContent, /\.mark-glyph\s*\{[^}]*fill:\s*none;[^}]*stroke:\s*#bfdbfe;[^}]*stroke-width:\s*1\.65;/s);
+  assert.match(style.textContent, /\.mark-center\s*\{[^}]*fill:\s*#fff;[^}]*stroke:\s*#3157d5;[^}]*stroke-width:\s*\.65;/s);
+  assert.match(style.textContent, /\.panel\.collapsed\.snapped\[data-edge="right"\] \.orb-mark\s*\{[^}]*transform:\s*translateX\(27px\)/s);
+  assert.match(style.textContent, /\.panel\.collapsed\.snapped:hover \.orb-mark,[^}]*\.panel\.collapsed\.snapped:focus-within \.orb-mark\s*\{[^}]*transform:\s*translate\(0, 0\)/s);
   assert.doesNotMatch(style.textContent, /transform:\s*scale/);
-  assert.doesNotMatch(style.textContent, /\.orb:hover \.orb-dot/);
+  assert.doesNotMatch(style.textContent, /basketball|ball-shell|ball-seam|ball-center/);
+  assert.doesNotMatch(style.textContent, /orb-dot/);
   assert.doesNotMatch(style.textContent, /\.panel\.collapsed::before/);
   assert.match(panel.className, /\bcollapsed\b/);
   assert.match(panel.className, /\bsnapped\b/);
   assert.equal(panel.getAttribute("data-edge"), "right");
   assert.ok(findByClass(panel, "orb"));
-  assert.ok(findByClass(panel, "orb-dot"));
+  const mark = findByClass(panel, "orb-mark");
+  assert.ok(mark);
+  assert.equal(mark.tagName, "svg");
+  assert.ok(findByClass(mark, "mark-shell"));
+  assert.ok(findByClass(mark, "mark-glyph"));
+  assert.equal(findByClass(mark, "mark-center").getAttribute("r"), "1.45");
   assert.equal(findByClass(panel, "head"), null);
   assert.equal(findByClass(panel, "head-actions"), null);
   assert.equal(findByClass(panel, "body"), null);
