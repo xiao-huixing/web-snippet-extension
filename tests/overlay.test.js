@@ -89,7 +89,7 @@ function findByAttribute(root, name, value) {
   return null;
 }
 
-function createOverlayHarness(collapsed, siteCollapsed = collapsed, invalidateOnMutation = false) {
+function createOverlayHarness(collapsed, siteCollapsed = collapsed, invalidateOnMutation = false, capture = {}) {
   const messages = [];
   const documentElement = new FakeElement("html");
   const document = {
@@ -102,7 +102,7 @@ function createOverlayHarness(collapsed, siteCollapsed = collapsed, invalidateOn
   store.uiState.collapsedBySite["https://github.com"] = siteCollapsed;
   const root = {
     SnippetCore: Core,
-    SnippetCapture: {}
+    SnippetCapture: capture
   };
   const context = vm.createContext({
     self: root,
@@ -323,4 +323,31 @@ test("保存弹框允许修改内容并提交修改后的值", async () => {
 
   const message = harness.messages.find((item) => item.type === "UPSERT_SNIPPET");
   assert.equal(message.payload.content, "修改后的完整内容\n第二行");
+});
+
+test("按下保存按钮时保持编辑器焦点并使用按下前捕获的内容", async () => {
+  let captureOptions = null;
+  const harness = createOverlayHarness(false, false, false, {
+    async captureCurrent(_selection, options) {
+      captureOptions = options;
+      return {
+        content: "选中的第一行\n选中的第二行",
+        pageUrl: "https://github.com/openai"
+      };
+    }
+  });
+  await harness.overlay.refresh();
+
+  const panel = findByClass(harness.shadow, "panel");
+  const saveCurrent = findByClass(panel, "actions").children[0];
+  let prevented = false;
+  saveCurrent.events.get("pointerdown")({
+    preventDefault() { prevented = true; }
+  });
+  await saveCurrent.events.get("click")();
+
+  const form = findByClass(harness.shadow, "dialog");
+  assert.equal(prevented, true);
+  assert.equal(captureOptions.preferFocusedField, true);
+  assert.equal(form.children[6].value, "选中的第一行\n选中的第二行");
 });

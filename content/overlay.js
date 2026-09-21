@@ -436,7 +436,8 @@
       if (result.error) toast(result.error.message);
       else openSaveDialog(result.draft);
     });
-    saveCurrent.addEventListener("pointerdown", () => {
+    saveCurrent.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
       pendingCapture = captureDraft();
     });
     actions.append(

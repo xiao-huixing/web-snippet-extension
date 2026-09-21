@@ -24,7 +24,7 @@
   }
 
   function editorRootFor(element) {
-    return element instanceof Element ? element.closest(".CodeMirror, .cm-editor") : null;
+    return element instanceof Element ? element.closest(".CodeMirror, .cm-editor, .ace_editor") : null;
   }
 
   function rememberTarget(element) {
@@ -71,6 +71,10 @@
     const editorRoot = editorRootFor(target);
     if (editorRoot?.classList.contains("CodeMirror")) {
       const response = await sendRuntimeMessage({ type: "READ_CODEMIRROR5" });
+      if (response?.ok && typeof response.content === "string") return response.content;
+    }
+    if (editorRoot?.classList.contains("ace_editor")) {
+      const response = await sendRuntimeMessage({ type: "READ_ACE_EDITOR" });
       if (response?.ok && typeof response.content === "string") return response.content;
     }
     if (editorRoot) return readCodeMirror(editorRoot);

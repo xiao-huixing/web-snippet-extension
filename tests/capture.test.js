@@ -4,7 +4,7 @@ const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 
-function createCaptureHarness() {
+function createCaptureHarness(sendMessage = async () => ({ ok: false })) {
   const listeners = new Map();
 
   class FakeElement {
@@ -13,8 +13,11 @@ function createCaptureHarness() {
       this.classList = { contains: () => false };
     }
 
-    closest() {
-      return null;
+    closest(selector) {
+      if (!this.closestResult) return null;
+      return !this.closestSelector || selector.includes(this.closestSelector)
+        ? this.closestResult
+        : null;
     }
 
     dispatchEvent(event) {
@@ -85,7 +88,7 @@ function createCaptureHarness() {
     location: { href: "https://example.com/form" },
     window: { getSelection: () => null },
     navigator: { clipboard: { writeText: async () => undefined } },
-    chrome: { runtime: { sendMessage: async () => ({ ok: false }) } },
+    chrome: { runtime: { sendMessage } },
     Element: FakeElement,
     HTMLInputElement: FakeInput,
     HTMLTextAreaElement: FakeTextArea,
@@ -176,5 +179,29 @@ test("光标移到其他行后不会复用上一次选区", async () => {
 
   const draft = await harness.capture.captureCurrent("", { preferFocusedField: true });
 
+  assert.equal(draft.content, "第一行\n第二行\n第三行");
+});
+
+test("Ace 编辑器不读取只含当前行的隐藏输入框", async () => {
+  const messages = [];
+  const harness = createCaptureHarness(async (message) => {
+    messages.push(message);
+    if (message.type === "READ_ACE_EDITOR") {
+      return { ok: true, content: "第一行\n第二行\n第三行" };
+    }
+    return { ok: false };
+  });
+  const aceRoot = new harness.FakeElement();
+  aceRoot.classList = { contains: (name) => name === "ace_editor" };
+  const hiddenTextarea = new harness.FakeTextArea();
+  hiddenTextarea.value = "第三行";
+  hiddenTextarea.closestResult = aceRoot;
+  hiddenTextarea.closestSelector = ".ace_editor";
+  hiddenTextarea.focus();
+  harness.listeners.get("focusin")({ target: hiddenTextarea });
+
+  const draft = await harness.capture.captureCurrent("", { preferFocusedField: true });
+
+  assert.equal(messages.at(-1).type, "READ_ACE_EDITOR");
   assert.equal(draft.content, "第一行\n第二行\n第三行");
 });
