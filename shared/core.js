@@ -4,13 +4,15 @@
   const SCHEMA_VERSION = 1;
   const MAX_NAME_LENGTH = 120;
   const MAX_CONTENT_LENGTH = 2_000_000;
+  const DEFAULT_ORB_SNAP_DISTANCE = 24;
+  const ORB_EDGES = new Set(["top", "right", "bottom", "left"]);
 
   function emptyStore() {
     return {
       schemaVersion: SCHEMA_VERSION,
       snippets: [],
       settings: { showOverlayWhenNoMatch: true },
-      uiState: { collapsedBySite: {} }
+      uiState: { collapsedBySite: {}, orbPositionBySite: {} }
     };
   }
 
@@ -45,6 +47,73 @@
 
   function normalizeScope(value) {
     return value === "page" ? "page" : "site";
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function normalizeOrbPosition(raw) {
+    if (raw?.edge === "free") {
+      return {
+        edge: "free",
+        xRatio: Number.isFinite(raw.xRatio) ? clamp(raw.xRatio, 0, 1) : 0,
+        yRatio: Number.isFinite(raw.yRatio) ? clamp(raw.yRatio, 0, 1) : 0
+      };
+    }
+    const edge = ORB_EDGES.has(raw?.edge) ? raw.edge : "right";
+    const ratio = Number.isFinite(raw?.ratio) ? clamp(raw.ratio, 0, 1) : 0;
+    return { edge, ratio };
+  }
+
+  function resolveOrbPosition(raw, viewportWidth, viewportHeight, size = 44) {
+    const position = normalizeOrbPosition(raw);
+    const safeSize = Number.isFinite(size) && size > 0 ? size : 44;
+    const maxLeft = Math.max(0, (Number.isFinite(viewportWidth) ? viewportWidth : safeSize) - safeSize);
+    const maxTop = Math.max(0, (Number.isFinite(viewportHeight) ? viewportHeight : safeSize) - safeSize);
+
+    if (position.edge === "free") {
+      return { left: maxLeft * position.xRatio, top: maxTop * position.yRatio };
+    }
+    if (position.edge === "left") return { left: 0, top: maxTop * position.ratio };
+    if (position.edge === "right") return { left: maxLeft, top: maxTop * position.ratio };
+    if (position.edge === "top") return { left: maxLeft * position.ratio, top: 0 };
+    return { left: maxLeft * position.ratio, top: maxTop };
+  }
+
+  function snapOrbPosition(
+    left,
+    top,
+    viewportWidth,
+    viewportHeight,
+    size = 44,
+    snapDistance = DEFAULT_ORB_SNAP_DISTANCE
+  ) {
+    const safeSize = Number.isFinite(size) && size > 0 ? size : 44;
+    const maxLeft = Math.max(0, (Number.isFinite(viewportWidth) ? viewportWidth : safeSize) - safeSize);
+    const maxTop = Math.max(0, (Number.isFinite(viewportHeight) ? viewportHeight : safeSize) - safeSize);
+    const safeLeft = clamp(Number.isFinite(left) ? left : 0, 0, maxLeft);
+    const safeTop = clamp(Number.isFinite(top) ? top : 0, 0, maxTop);
+    const nearest = [
+      { edge: "left", distance: safeLeft },
+      { edge: "right", distance: maxLeft - safeLeft },
+      { edge: "top", distance: safeTop },
+      { edge: "bottom", distance: maxTop - safeTop }
+    ].sort((a, b) => a.distance - b.distance)[0];
+    const safeSnapDistance = Number.isFinite(snapDistance) && snapDistance >= 0
+      ? snapDistance
+      : DEFAULT_ORB_SNAP_DISTANCE;
+    if (nearest.distance > safeSnapDistance) {
+      return normalizeOrbPosition({
+        edge: "free",
+        xRatio: maxLeft ? safeLeft / maxLeft : 0,
+        yRatio: maxTop ? safeTop / maxTop : 0
+      });
+    }
+    const ratio = nearest.edge === "left" || nearest.edge === "right"
+      ? (maxTop ? safeTop / maxTop : 0)
+      : (maxLeft ? safeLeft / maxLeft : 0);
+    return normalizeOrbPosition({ edge: nearest.edge, ratio });
   }
 
   function buildSnippet(input, existing) {
@@ -111,6 +180,12 @@
         }
       }
     }
+    const orbPositionBySite = {};
+    if (raw.uiState?.orbPositionBySite && typeof raw.uiState.orbPositionBySite === "object") {
+      for (const [siteKey, position] of Object.entries(raw.uiState.orbPositionBySite)) {
+        orbPositionBySite[siteKey] = normalizeOrbPosition(position);
+      }
+    }
     return {
       schemaVersion: SCHEMA_VERSION,
       snippets,
@@ -121,7 +196,8 @@
         collapsedBySite:
           raw.uiState?.collapsedBySite && typeof raw.uiState.collapsedBySite === "object"
             ? { ...raw.uiState.collapsedBySite }
-            : {}
+            : {},
+        orbPositionBySite
       }
     };
   }
@@ -147,6 +223,9 @@
     emptyStore,
     cleanName,
     parsePageLocation,
+    normalizeOrbPosition,
+    resolveOrbPosition,
+    snapOrbPosition,
     buildSnippet,
     uniqueKey,
     matchesPage,

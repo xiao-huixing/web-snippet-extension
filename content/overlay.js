@@ -3,6 +3,8 @@
 
   const Core = root.SnippetCore;
   const Capture = root.SnippetCapture;
+  const ORB_SIZE = 44;
+  const DRAG_THRESHOLD = 5;
   const host = document.createElement("div");
   host.id = "web-snippet-extension-root";
   const shadow = host.attachShadow({ mode: "closed" });
@@ -25,7 +27,7 @@
     .head-actions { display: flex; flex: none; gap: 2px; align-items: center; margin-left: auto; }
     button { border: 0; font: inherit; cursor: pointer; }
     .orb { width: 44px; height: 44px; display: grid; place-items: center; padding: 0;
-      background: transparent; border-radius: 50%; box-shadow: none; }
+      touch-action: none; cursor: grab; background: transparent; border-radius: 50%; box-shadow: none; }
     .orb:hover { background: transparent; box-shadow: none; }
     .orb-dot { width: 8px; height: 8px; border-radius: 50%; background: #3157d5;
       box-shadow: 0 0 0 3px rgba(255, 255, 255, .72), 0 2px 8px rgba(24, 34, 51, .22);
@@ -69,6 +71,8 @@
       .panel.collapsed { opacity: .58; }
       .panel.collapsed:hover, .panel.collapsed:focus-within { opacity: 1; transform: scale(1.05); }
     }
+    .panel.collapsed.dragging { opacity: 1; transform: none; transition: none; }
+    .panel.collapsed.dragging .orb { cursor: grabbing; }
     @media (prefers-reduced-motion: reduce) {
       .panel, .orb-dot { transition: none; }
     }
@@ -80,6 +84,113 @@
   let panel = null;
   let dialogOpen = false;
   let overlayHidden = false;
+  let panelSiteKey = null;
+  let ignoreNextOrbClick = false;
+
+  function viewportSize() {
+    return {
+      width: Number.isFinite(window.innerWidth) ? window.innerWidth : ORB_SIZE,
+      height: Number.isFinite(window.innerHeight) ? window.innerHeight : ORB_SIZE
+    };
+  }
+
+  function defaultOrbPosition() {
+    const { height } = viewportSize();
+    return { edge: "right", ratio: 18 / Math.max(1, height - ORB_SIZE) };
+  }
+
+  function getOrbPosition(siteKey) {
+    return store.uiState.orbPositionBySite[siteKey] || defaultOrbPosition();
+  }
+
+  function applyOrbPosition(target, position) {
+    const { width, height } = viewportSize();
+    const coordinates = Core.resolveOrbPosition(position, width, height, ORB_SIZE);
+    target.style.left = `${coordinates.left}px`;
+    target.style.top = `${coordinates.top}px`;
+    target.style.right = "auto";
+    target.style.bottom = "auto";
+    return coordinates;
+  }
+
+  function setDragging(target, dragging) {
+    target.className = dragging ? "panel collapsed dragging" : "panel collapsed";
+  }
+
+  function makeOrbDraggable(orb, target, siteKey) {
+    let dragState = null;
+
+    orb.addEventListener("pointerdown", (event) => {
+      if (event.button !== undefined && event.button !== 0) return;
+      dragState = {
+        pointerId: event.pointerId,
+        pointerX: event.clientX,
+        pointerY: event.clientY,
+        startLeft: Number.parseFloat(target.style.left) || 0,
+        startTop: Number.parseFloat(target.style.top) || 0,
+        moved: false
+      };
+      orb.setPointerCapture?.(event.pointerId);
+    });
+
+    orb.addEventListener("pointermove", (event) => {
+      if (!dragState || event.pointerId !== dragState.pointerId) return;
+      const deltaX = event.clientX - dragState.pointerX;
+      const deltaY = event.clientY - dragState.pointerY;
+      if (!dragState.moved && Math.hypot(deltaX, deltaY) < DRAG_THRESHOLD) return;
+      dragState.moved = true;
+      event.preventDefault();
+      setDragging(target, true);
+      const { width, height } = viewportSize();
+      const maxLeft = Math.max(0, width - ORB_SIZE);
+      const maxTop = Math.max(0, height - ORB_SIZE);
+      target.style.left = `${Math.min(maxLeft, Math.max(0, dragState.startLeft + deltaX))}px`;
+      target.style.top = `${Math.min(maxTop, Math.max(0, dragState.startTop + deltaY))}px`;
+    });
+
+    const finishDrag = async (event, cancelled) => {
+      if (!dragState || event.pointerId !== dragState.pointerId) return;
+      const moved = dragState.moved;
+      dragState = null;
+      orb.releasePointerCapture?.(event.pointerId);
+      setDragging(target, false);
+      if (!moved) return;
+      event.preventDefault();
+      if (cancelled) {
+        applyOrbPosition(target, getOrbPosition(siteKey));
+        return;
+      }
+
+      ignoreNextOrbClick = true;
+      setTimeout(() => { ignoreNextOrbClick = false; }, 0);
+      const { width, height } = viewportSize();
+      const position = Core.snapOrbPosition(
+        Number.parseFloat(target.style.left),
+        Number.parseFloat(target.style.top),
+        width,
+        height,
+        ORB_SIZE
+      );
+      applyOrbPosition(target, position);
+      store = {
+        ...store,
+        uiState: {
+          ...store.uiState,
+          orbPositionBySite: { ...store.uiState.orbPositionBySite, [siteKey]: position }
+        }
+      };
+      await chrome.runtime.sendMessage({ type: "SET_ORB_POSITION", siteKey, position });
+    };
+
+    orb.addEventListener("pointerup", (event) => finishDrag(event, false));
+    orb.addEventListener("pointercancel", (event) => finishDrag(event, true));
+  }
+
+  window.addEventListener?.("resize", () => {
+    if (panel?.className.split(/\s+/).includes("collapsed") && panelSiteKey) {
+      applyOrbPosition(panel, getOrbPosition(panelSiteKey));
+    }
+  });
 
   function button(text, className, onClick, title) {
     const element = document.createElement("button");
@@ -160,6 +271,7 @@
   function renderPanel() {
     panel?.remove();
     panel = null;
+    panelSiteKey = null;
     if (overlayHidden) return;
     const locationInfo = Core.parsePageLocation(location.href);
     const snippets = Core.sortForPage(store.snippets.filter((item) => Core.matchesPage(item, location.href)));
@@ -167,12 +279,19 @@
 
     const collapsed = Boolean(store.uiState.collapsedBySite[locationInfo.siteKey]);
     panel = document.createElement("section");
+    panelSiteKey = locationInfo.siteKey;
     panel.className = collapsed ? "panel collapsed" : "panel";
     panel.setAttribute("aria-label", "网页片段");
     const collapse = toggleButton(collapsed, async () => {
+      if (collapsed && ignoreNextOrbClick) {
+        ignoreNextOrbClick = false;
+        return;
+      }
       await chrome.runtime.sendMessage({ type: "SET_COLLAPSED", siteKey: locationInfo.siteKey, collapsed: !collapsed });
     });
     if (collapsed) {
+      applyOrbPosition(panel, getOrbPosition(locationInfo.siteKey));
+      makeOrbDraggable(collapse, panel, locationInfo.siteKey);
       panel.append(collapse);
       shadow.append(panel);
       return;

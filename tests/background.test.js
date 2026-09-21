@@ -5,9 +5,12 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
+const Core = require("../shared/core.js");
 
 function createBackgroundHarness(sendResult = { ok: true }) {
   let actionListener = null;
+  let messageListener = null;
+  let stored = Core.emptyStore();
   const sentMessages = [];
   const createdTabs = [];
   const chrome = {
@@ -23,13 +26,13 @@ function createBackgroundHarness(sendResult = { ok: true }) {
       getURL(file) { return `chrome-extension://test/${file}`; },
       onInstalled: { addListener() {} },
       onStartup: { addListener() {} },
-      onMessage: { addListener() {} }
+      onMessage: { addListener(listener) { messageListener = listener; } }
     },
     scripting: { executeScript: async () => [] },
     storage: {
       local: {
-        async get() { return {}; },
-        async set() {}
+        async get(key) { return { [key]: stored }; },
+        async set(value) { stored = value.snippetStore; }
       }
     },
     tabs: {
@@ -44,11 +47,19 @@ function createBackgroundHarness(sendResult = { ok: true }) {
   const context = vm.createContext({
     chrome,
     importScripts() {},
-    SnippetCore: { emptyStore: () => ({}) }
+    SnippetCore: Core
   });
   const source = fs.readFileSync(path.join(__dirname, "..", "background.js"), "utf8");
   vm.runInContext(source, context);
-  return { getActionListener: () => actionListener, sentMessages, createdTabs };
+  return {
+    getActionListener: () => actionListener,
+    getStore: () => stored,
+    sentMessages,
+    createdTabs,
+    sendRuntimeMessage(message) {
+      return new Promise((resolve) => messageListener(message, {}, resolve));
+    }
+  };
 }
 
 test("点击扩展图标切换当前网页浮层", async () => {
@@ -69,4 +80,20 @@ test("当前页面无法注入浮层时退回管理页", async () => {
 
   assert.equal(harness.createdTabs.length, 1);
   assert.equal(harness.createdTabs[0].url, "chrome-extension://test/manager.html");
+});
+
+test("保存折叠小球的站点边缘位置", async () => {
+  const harness = createBackgroundHarness();
+
+  const response = await harness.sendRuntimeMessage({
+    type: "SET_ORB_POSITION",
+    siteKey: "https://example.com",
+    position: { edge: "left", ratio: 0.5 }
+  });
+
+  assert.equal(response.ok, true);
+  assert.deepEqual(harness.getStore().uiState.orbPositionBySite["https://example.com"], {
+    edge: "left",
+    ratio: 0.5
+  });
 });

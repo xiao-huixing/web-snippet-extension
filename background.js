@@ -158,6 +158,13 @@ async function setCollapsed(siteKey, collapsed) {
   });
 }
 
+async function setOrbPosition(siteKey, position) {
+  return mutateStore((store) => {
+    store.uiState.orbPositionBySite[siteKey] = SnippetCore.normalizeOrbPosition(position);
+    return { ok: true };
+  });
+}
+
 async function fillCodeMirror5(tabId, text) {
   const results = await chrome.scripting.executeScript({
     target: { tabId },
@@ -204,6 +211,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return importSnippets(message.payload);
       case "SET_COLLAPSED":
         return setCollapsed(message.siteKey, message.collapsed);
+      case "SET_ORB_POSITION":
+        return setOrbPosition(message.siteKey, message.position);
       case "OPEN_MANAGER":
         await chrome.tabs.create({ url: chrome.runtime.getURL("manager.html") });
         return { ok: true };

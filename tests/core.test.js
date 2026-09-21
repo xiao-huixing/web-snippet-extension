@@ -78,3 +78,47 @@ test("本地存储中的损坏记录不会阻断有效片段", () => {
   assert.equal(store.snippets.length, 1);
   assert.equal(store.snippets[0].name, "有效");
 });
+
+test("折叠小球位置可在视口边缘与坐标之间转换", () => {
+  assert.deepEqual(
+    Core.resolveOrbPosition({ edge: "right", ratio: 0.5 }, 1200, 800, 44),
+    { left: 1156, top: 378 }
+  );
+  assert.deepEqual(
+    Core.snapOrbPosition(8, 378, 1200, 800, 44),
+    { edge: "left", ratio: 0.5 }
+  );
+  assert.deepEqual(
+    Core.snapOrbPosition(578, 750, 1200, 800, 44),
+    { edge: "bottom", ratio: 0.5 }
+  );
+  assert.deepEqual(
+    Core.snapOrbPosition(578, 378, 1200, 800, 44),
+    { edge: "free", xRatio: 0.5, yRatio: 0.5 }
+  );
+  assert.deepEqual(
+    Core.resolveOrbPosition({ edge: "free", xRatio: 0.5, yRatio: 0.5 }, 1200, 800, 44),
+    { left: 578, top: 378 }
+  );
+});
+
+test("存储中的小球位置会校验边缘和比例", () => {
+  const store = Core.normalizeStore({
+    uiState: {
+      collapsedBySite: { "https://example.com": true },
+      orbPositionBySite: {
+        "https://example.com": { edge: "left", ratio: 1.4 },
+        "https://free.example": { edge: "free", xRatio: 0.4, yRatio: 1.4 },
+        "https://invalid.example": { edge: "diagonal", ratio: -1 }
+      }
+    }
+  });
+
+  assert.deepEqual(store.uiState.orbPositionBySite["https://example.com"], { edge: "left", ratio: 1 });
+  assert.deepEqual(store.uiState.orbPositionBySite["https://free.example"], {
+    edge: "free",
+    xRatio: 0.4,
+    yRatio: 1
+  });
+  assert.deepEqual(store.uiState.orbPositionBySite["https://invalid.example"], { edge: "right", ratio: 0 });
+});

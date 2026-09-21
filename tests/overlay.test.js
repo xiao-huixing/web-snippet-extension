@@ -15,6 +15,7 @@ class FakeElement {
     this.events = new Map();
     this.className = "";
     this.hidden = false;
+    this.style = {};
     this.textContent = "";
   }
 
@@ -54,6 +55,10 @@ class FakeElement {
   }
 
   focus() {}
+
+  setPointerCapture() {}
+
+  releasePointerCapture() {}
 }
 
 function findByClass(root, className) {
@@ -92,7 +97,12 @@ function createOverlayHarness(collapsed) {
     self: root,
     document,
     location: { href: "https://github.com/openai" },
-    window: { confirm: () => true },
+    window: {
+      confirm: () => true,
+      innerWidth: 1200,
+      innerHeight: 800,
+      addEventListener() {}
+    },
     chrome: {
       runtime: {
         async sendMessage(message) {
@@ -145,6 +155,59 @@ test("折叠后显示稳定的小球按钮，点击后展开浮层", async () =>
   assert.equal(message.type, "SET_COLLAPSED");
   assert.equal(message.siteKey, "https://github.com");
   assert.equal(message.collapsed, false);
+});
+
+test("拖动折叠小球后吸附最近边缘且不触发展开", async () => {
+  const harness = createOverlayHarness(true);
+  await harness.overlay.refresh();
+
+  const panel = findByClass(harness.shadow, "panel");
+  const toggle = findByAttribute(panel, "aria-label", "展开网页片段");
+  const pointerEvent = (clientX, clientY) => ({
+    button: 0,
+    pointerId: 1,
+    clientX,
+    clientY,
+    preventDefault() {}
+  });
+
+  assert.equal(panel.style.left, "1156px");
+  assert.equal(panel.style.top, "18px");
+
+  toggle.events.get("pointerdown")(pointerEvent(1178, 40));
+  toggle.events.get("pointermove")(pointerEvent(22, 400));
+  await toggle.events.get("pointerup")(pointerEvent(22, 400));
+  await toggle.events.get("click")();
+
+  assert.equal(panel.style.left, "0px");
+  assert.equal(panel.style.top, "378px");
+  const positionMessage = harness.messages.find((message) => message.type === "SET_ORB_POSITION");
+  assert.deepEqual(positionMessage.position, { edge: "left", ratio: 0.5 });
+  assert.equal(harness.messages.some((message) => message.type === "SET_COLLAPSED"), false);
+});
+
+test("拖动位置远离边缘时保留自由位置", async () => {
+  const harness = createOverlayHarness(true);
+  await harness.overlay.refresh();
+
+  const panel = findByClass(harness.shadow, "panel");
+  const toggle = findByAttribute(panel, "aria-label", "展开网页片段");
+  const pointerEvent = (clientX, clientY) => ({
+    button: 0,
+    pointerId: 1,
+    clientX,
+    clientY,
+    preventDefault() {}
+  });
+
+  toggle.events.get("pointerdown")(pointerEvent(1178, 40));
+  toggle.events.get("pointermove")(pointerEvent(600, 400));
+  await toggle.events.get("pointerup")(pointerEvent(600, 400));
+
+  assert.equal(panel.style.left, "578px");
+  assert.equal(panel.style.top, "378px");
+  const positionMessage = harness.messages.find((message) => message.type === "SET_ORB_POSITION");
+  assert.deepEqual(positionMessage.position, { edge: "free", xRatio: 0.5, yRatio: 0.5 });
 });
 
 test("展开状态提供明确的收起按钮", async () => {
