@@ -17,6 +17,7 @@ class FakeElement {
     this.hidden = false;
     this.style = {};
     this.textContent = "";
+    this.animations = [];
   }
 
   append(...children) {
@@ -59,6 +60,11 @@ class FakeElement {
   setPointerCapture() {}
 
   releasePointerCapture() {}
+
+  animate(keyframes, options) {
+    this.animations.push({ keyframes, options });
+    return { finished: Promise.resolve(), cancel() {} };
+  }
 }
 
 function findByClass(root, className) {
@@ -135,13 +141,17 @@ test("折叠后显示稳定的小球按钮，点击后展开浮层", async () =>
   assert.match(style.textContent, /\.panel\s*\{\s*opacity:\s*\.42;/);
   assert.match(style.textContent, /\.panel:hover,\s*\.panel:focus-within\s*\{\s*opacity:\s*1;/);
   assert.match(style.textContent, /\.panel\.collapsed\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;[^}]*background:\s*transparent;[^}]*border:\s*0;/s);
-  assert.match(style.textContent, /\.orb\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;[^}]*display:\s*grid;[^}]*place-items:\s*center;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/s);
-  assert.match(style.textContent, /\.orb:hover\s*\{[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/s);
+  assert.match(style.textContent, /\.orb\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;[^}]*display:\s*grid;[^}]*place-items:\s*center;[^}]*background:\s*#fffdf8;[^}]*border:\s*1px solid #cfd5df;[^}]*box-shadow:/s);
+  assert.match(style.textContent, /\.panel\.collapsed\.snapped \.orb\s*\{[^}]*background:\s*transparent;[^}]*border-color:\s*transparent;[^}]*box-shadow:\s*none;/s);
+  assert.match(style.textContent, /\.panel\.collapsed\.snapped:hover \.orb,[^}]*\.panel\.collapsed\.snapped:focus-within \.orb\s*\{[^}]*background:\s*#fffdf8;/s);
   assert.match(style.textContent, /\.orb-dot\s*\{[^}]*width:\s*8px;[^}]*height:\s*8px;[^}]*border-radius:\s*50%;[^}]*background:\s*#3157d5;/s);
+  assert.match(style.textContent, /\.panel\.collapsed\.snapped\[data-edge="right"\] \.orb-dot\s*\{[^}]*transform:\s*translateX\(16px\)/s);
   assert.doesNotMatch(style.textContent, /transform:\s*scale/);
   assert.doesNotMatch(style.textContent, /\.orb:hover \.orb-dot/);
   assert.doesNotMatch(style.textContent, /\.panel\.collapsed::before/);
   assert.match(panel.className, /\bcollapsed\b/);
+  assert.match(panel.className, /\bsnapped\b/);
+  assert.equal(panel.getAttribute("data-edge"), "right");
   assert.ok(findByClass(panel, "orb"));
   assert.ok(findByClass(panel, "orb-dot"));
   assert.equal(findByClass(panel, "head"), null);
@@ -176,12 +186,21 @@ test("拖动折叠小球后吸附最近边缘且不触发展开", async () => {
   assert.equal(panel.style.top, "18px");
 
   toggle.events.get("pointerdown")(pointerEvent(1178, 40));
-  toggle.events.get("pointermove")(pointerEvent(22, 400));
-  await toggle.events.get("pointerup")(pointerEvent(22, 400));
+  toggle.events.get("pointermove")(pointerEvent(30, 400));
+  await toggle.events.get("pointerup")(pointerEvent(30, 400));
   await toggle.events.get("click")();
 
   assert.equal(panel.style.left, "0px");
   assert.equal(panel.style.top, "378px");
+  assert.match(panel.className, /\bsnapped\b/);
+  assert.equal(panel.getAttribute("data-edge"), "left");
+  assert.equal(JSON.stringify(panel.animations), JSON.stringify([{
+    keyframes: [
+      { transform: "translate(8px, 0px)" },
+      { transform: "translate(0, 0)" }
+    ],
+    options: { duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" }
+  }]));
   const positionMessage = harness.messages.find((message) => message.type === "SET_ORB_POSITION");
   assert.deepEqual(positionMessage.position, { edge: "left", ratio: 0.5 });
   assert.equal(harness.messages.some((message) => message.type === "SET_COLLAPSED"), false);
@@ -207,6 +226,9 @@ test("拖动位置远离边缘时保留自由位置", async () => {
 
   assert.equal(panel.style.left, "578px");
   assert.equal(panel.style.top, "378px");
+  assert.doesNotMatch(panel.className, /\bsnapped\b/);
+  assert.equal(panel.getAttribute("data-edge"), "free");
+  assert.deepEqual(panel.animations, []);
   const positionMessage = harness.messages.find((message) => message.type === "SET_ORB_POSITION");
   assert.deepEqual(positionMessage.position, { edge: "free", xRatio: 0.5, yRatio: 0.5 });
 });

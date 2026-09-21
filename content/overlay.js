@@ -27,10 +27,20 @@
     .head-actions { display: flex; flex: none; gap: 2px; align-items: center; margin-left: auto; }
     button { border: 0; font: inherit; cursor: pointer; }
     .orb { width: 44px; height: 44px; display: grid; place-items: center; padding: 0;
-      touch-action: none; cursor: grab; background: transparent; border-radius: 50%; box-shadow: none; }
-    .orb:hover { background: transparent; box-shadow: none; }
+      touch-action: none; cursor: grab; background: #fffdf8; border: 1px solid #cfd5df; border-radius: 50%;
+      box-shadow: 0 8px 22px rgba(24, 34, 51, .2); transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease; }
+    .orb:hover { background: #fffdf8; border-color: #aab4c4; box-shadow: 0 10px 26px rgba(24, 34, 51, .24); }
     .orb-dot { width: 8px; height: 8px; border-radius: 50%; background: #3157d5;
-      box-shadow: 0 0 0 3px rgba(255, 255, 255, .72), 0 2px 8px rgba(24, 34, 51, .22); }
+      box-shadow: 0 0 0 3px rgba(255, 255, 255, .86), 0 2px 8px rgba(24, 34, 51, .22);
+      transition: transform 140ms cubic-bezier(0.16, 1, 0.3, 1); }
+    .panel.collapsed.snapped .orb { background: transparent; border-color: transparent; box-shadow: none; }
+    .panel.collapsed.snapped:hover .orb, .panel.collapsed.snapped:focus-within .orb {
+      background: #fffdf8; border-color: #cfd5df; box-shadow: 0 8px 22px rgba(24, 34, 51, .2); }
+    .panel.collapsed.snapped[data-edge="left"] .orb-dot { transform: translateX(-16px); }
+    .panel.collapsed.snapped[data-edge="right"] .orb-dot { transform: translateX(16px); }
+    .panel.collapsed.snapped[data-edge="top"] .orb-dot { transform: translateY(-16px); }
+    .panel.collapsed.snapped[data-edge="bottom"] .orb-dot { transform: translateY(16px); }
+    .panel.collapsed.snapped:hover .orb-dot, .panel.collapsed.snapped:focus-within .orb-dot { transform: translate(0, 0); }
     .icon { width: 30px; height: 30px; color: #475569; background: transparent; border-radius: 8px; }
     .icon:hover { background: #e9edf7; color: #1d3fb7; }
     .orb:focus-visible, .icon:focus-visible, .primary:focus-visible, .secondary:focus-visible, .mini:focus-visible, .name:focus-visible {
@@ -66,13 +76,12 @@
     @media (hover: hover) and (pointer: fine) {
       .panel { opacity: .42; }
       .panel:hover, .panel:focus-within { opacity: 1; }
-      .panel.collapsed { opacity: .58; }
-      .panel.collapsed:hover, .panel.collapsed:focus-within { opacity: 1; }
+      .panel.collapsed { opacity: 1; }
     }
     .panel.collapsed.dragging { opacity: 1; transition: none; }
     .panel.collapsed.dragging .orb { cursor: grabbing; }
     @media (prefers-reduced-motion: reduce) {
-      .panel { transition: none; }
+      .panel, .orb, .orb-dot { transition: none; }
     }
   `;
   shadow.append(style);
@@ -101,25 +110,52 @@
     return store.uiState.orbPositionBySite[siteKey] || defaultOrbPosition();
   }
 
-  function applyOrbPosition(target, position) {
+  function setCollapsedPanelState(target, position, dragging = false) {
+    const normalized = Core.normalizeOrbPosition(position);
+    const snapped = normalized.edge !== "free" && !dragging;
+    target.className = ["panel", "collapsed", snapped ? "snapped" : "", dragging ? "dragging" : ""]
+      .filter(Boolean)
+      .join(" ");
+    target.setAttribute("data-edge", dragging ? "free" : normalized.edge);
+  }
+
+  function applyOrbPosition(target, position, updateAppearance = true) {
     const { width, height } = viewportSize();
-    const coordinates = Core.resolveOrbPosition(position, width, height, ORB_SIZE);
+    const normalized = Core.normalizeOrbPosition(position);
+    const coordinates = Core.resolveOrbPosition(normalized, width, height, ORB_SIZE);
     target.style.left = `${coordinates.left}px`;
     target.style.top = `${coordinates.top}px`;
     target.style.right = "auto";
     target.style.bottom = "auto";
+    if (updateAppearance) setCollapsedPanelState(target, normalized);
     return coordinates;
   }
 
-  function setDragging(target, dragging) {
-    target.className = dragging ? "panel collapsed dragging" : "panel collapsed";
+  function prefersReducedMotion() {
+    return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
+  }
+
+  function animateOrbSnap(target, from, to) {
+    const deltaX = from.left - to.left;
+    const deltaY = from.top - to.top;
+    if (prefersReducedMotion() || typeof target.animate !== "function" || (!deltaX && !deltaY)) return null;
+    return target.animate(
+      [
+        { transform: `translate(${deltaX}px, ${deltaY}px)` },
+        { transform: "translate(0, 0)" }
+      ],
+      { duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" }
+    );
   }
 
   function makeOrbDraggable(orb, target, siteKey) {
     let dragState = null;
+    let snapAnimation = null;
 
     orb.addEventListener("pointerdown", (event) => {
       if (event.button !== undefined && event.button !== 0) return;
+      snapAnimation?.cancel();
+      snapAnimation = null;
       dragState = {
         pointerId: event.pointerId,
         pointerX: event.clientX,
@@ -138,7 +174,7 @@
       if (!dragState.moved && Math.hypot(deltaX, deltaY) < DRAG_THRESHOLD) return;
       dragState.moved = true;
       event.preventDefault();
-      setDragging(target, true);
+      setCollapsedPanelState(target, { edge: "free", xRatio: 0, yRatio: 0 }, true);
       const { width, height } = viewportSize();
       const maxLeft = Math.max(0, width - ORB_SIZE);
       const maxTop = Math.max(0, height - ORB_SIZE);
@@ -149,9 +185,12 @@
     const finishDrag = async (event, cancelled) => {
       if (!dragState || event.pointerId !== dragState.pointerId) return;
       const moved = dragState.moved;
+      const dragCoordinates = {
+        left: Number.parseFloat(target.style.left) || 0,
+        top: Number.parseFloat(target.style.top) || 0
+      };
       dragState = null;
       orb.releasePointerCapture?.(event.pointerId);
-      setDragging(target, false);
       if (!moved) return;
       event.preventDefault();
       if (cancelled) {
@@ -169,7 +208,22 @@
         height,
         ORB_SIZE
       );
-      applyOrbPosition(target, position);
+      const snapped = position.edge !== "free";
+      const finalCoordinates = applyOrbPosition(target, position, false);
+      if (snapped) {
+        const animation = animateOrbSnap(target, dragCoordinates, finalCoordinates);
+        snapAnimation = animation;
+        if (animation) {
+          try {
+            await animation.finished;
+          } catch {
+            // 新的拖动会主动取消旧吸附动画。
+          }
+          if (snapAnimation !== animation) return;
+          snapAnimation = null;
+        }
+      }
+      setCollapsedPanelState(target, position);
       store = {
         ...store,
         uiState: {
